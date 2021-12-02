@@ -1,0 +1,56 @@
+<?php
+
+use Drupal\Core\Form\FormStateInterface;
+
+/**
+ * Implements hook_form_alter()
+ * Alter the form Add/Edit form to include admin setting for displaying
+ * RSVPBlock with content
+ */
+
+function rsvplist_form_node_form_alter(&$form, \Drupal\Core\Form\FormStateInterface $formState, $form_id) {
+  $node = $formState->getFormObject()->getEntity();
+  $current_node_type = $node->getType();
+  $config = \Drupal::config('rsvplist.settings');
+  $types = $config->get('allowed_types', []);
+  // RSVP options for administrators
+  if (in_array($current_node_type, $types)) {
+    $form['rsvplist'] = [
+      '#type' => 'details',
+      '#title' => t('RSVP Collections'),
+      '#access' => \Drupal::currentUser()->hasPermission('administer rsvplist'),
+      '#group' => 'advanced',
+      '#weight' => 100,
+    ];
+    /** @var \Drupal\rsvplist\EnablerService $enabler */
+    $enabler = Drupal::service('rsvplist.enabler');
+    $form['rsvplist']['rsvplist_enabled'] = [
+      '#type' => 'checkbox',
+      '#title' => t('Collect RSVP e-mail addresses for this node.'),
+      '#default_value' => $enabler->isEnabled($node),
+    ];
+    foreach (array_keys($form['actions']) as $action) {
+      if ($action != 'preview' && isset($form['actions'][$action]['#type']) && $form['actions'][$action]['#type'] === 'submit') {
+        $form['actions'][$action]['#submit'][] = 'rsvplist_form_node_form_submit';
+      }
+    }
+  }
+}
+
+/**
+ * Form submission handler for RSVP item field on the node form.
+ *
+ * @see \rsvplist_form_node_form_alter()
+ */
+function rsvplist_form_node_form_submit(&$form, \Drupal\Core\Form\FormStateInterface $formState) {
+  /** @var \Drupal\rsvplist\EnablerService $enabler */
+  $enabler = Drupal::service('rsvplist.enabler');
+  $node = $formState->getFormObject()->getEntity();
+  if ($enabled = $formState->getValue('rsvplist_enabled')) {
+    $enabler->setEnabled($node);
+  }
+  else {
+    $enabler->delEnabled($node);
+  }
+
+}
